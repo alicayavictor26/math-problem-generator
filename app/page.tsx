@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 interface MathProblem {
   problem_text: string
@@ -17,15 +19,115 @@ export default function Home() {
 
   const generateProblem = async () => {
     // TODO: Implement problem generation logic
-    // This should call your API route to generate a new problem
-    // and save it to the database
+    setIsLoading(true)
+    setFeedback('')
+    setUserAnswer('')
+    setIsCorrect(null)
+    setProblem(null)
+
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GOOGLE_API_KEY)
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+
+      const prompt = `Generate a math word problem suitable for elementary or middle school students. 
+      The problem should be clear, engaging, and have a single numerical answer.
+      Return the response in JSON format with the following structure:
+      {
+        "problem_text": "the full problem description",
+        "final_answer": numeric_answer
+      }
+      Only return the JSON object, no additional text.`
+
+      const result = await model.generateContent(prompt)
+      const response = await result.response
+      const text = response.text()
+      
+      // Parse the JSON response from Gemini
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        throw new Error('Invalid response format from AI')
+      }
+      
+      const mathProblem = JSON.parse(jsonMatch[0])
+
+      // Create a new session in the database
+      const { data: session, error: sessionError } = await supabase
+        .from('math_problem_sessions')
+        .insert({
+          problem_text: mathProblem.problem_text,
+          correct_answer: mathProblem.final_answer
+        })
+        .select()
+        .single()
+
+      if (sessionError) {
+        throw sessionError
+      }
+
+      setProblem({
+        problem_text: mathProblem.problem_text,
+        final_answer: mathProblem.final_answer
+      })
+      setSessionId(session.id)
+
+    } catch (error) {
+      console.error('Error:', error)
+      setFeedback('An error occurred. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const submitAnswer = async (e: React.FormEvent) => {
     e.preventDefault()
     // TODO: Implement answer submission logic
-    // This should call your API route to check the answer,
-    // save the submission, and generate feedback
+    if (!sessionId || !userAnswer || !problem) return
+
+    setIsLoading(true)
+    
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GOOGLE_API_KEY!)
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+
+      // Check if answer is correct
+      const correct = Number(userAnswer) === problem.final_answer
+      setIsCorrect(correct)
+
+      // Generate feedback using Gemini
+      const feedbackPrompt = `A student answered a math problem. 
+      Problem: ${problem.problem_text}
+      Correct answer: ${problem.final_answer}
+      Student's answer: ${userAnswer}
+      Is correct: ${correct}
+      
+      Generate encouraging feedback for the student. If correct, congratulate them and explain the solution briefly. If incorrect, gently explain what went wrong and guide them to the correct answer. Keep it friendly and educational.`
+
+      const result = await model.generateContent(feedbackPrompt)
+      const response = await result.response
+      const feedbackText = response.text()
+
+      // Save submission to database
+      const { error: submissionError } = await supabase
+        .from('math_problem_submissions')
+        .insert({
+          session_id: sessionId,
+          user_answer: Number(userAnswer),
+          is_correct: correct,
+          feedback_text: feedbackText
+        })
+
+      if (submissionError) {
+        throw submissionError
+      }
+
+      setFeedback(feedbackText)
+
+    } catch (error) {
+      console.error('Error:', error)
+      setFeedback('An error occurred while submitting your answer. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -44,7 +146,7 @@ export default function Home() {
             {isLoading ? 'Generating...' : 'Generate New Problem'}
           </button>
         </div>
-
+        
         {problem && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-700">Problem:</h2>

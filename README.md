@@ -48,8 +48,8 @@ cd math-problem-generator
    ```
 2. Edit `.env.local` and add your actual keys:
    ```
-   NEXT_PUBLIC_SUPABASE_URL=your_actual_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_actual_supabase_anon_key
+   NEXT_PUBLIC_SUPABASE_URL=https://wommpeoxgfqmfrmnkots.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvbW1wZW94Z2ZxbWZybW5rb3RzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3OTI1MDIsImV4cCI6MjA3NjM2ODUwMn0.gWq2UjdckaPuc6ScF6SZQWPI1YPENRxYkr4r6cAePq0
    GOOGLE_API_KEY=your_actual_google_api_key
    ```
 
